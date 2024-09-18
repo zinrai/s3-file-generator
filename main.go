@@ -27,20 +27,38 @@ func main() {
 	region := flag.String("region", "us-east-1", "AWS region or dummy region for S3-compatible service")
 	flag.Parse()
 
-	if *bucketName == "" || *accessKey == "" || *secretKey == "" {
-		log.Fatal("Bucket name, access key, and secret key are required")
+	if *bucketName == "" {
+		log.Fatal("Bucket name is required")
 	}
 
 	ctx := context.TODO()
-	creds := credentials.NewStaticCredentialsProvider(*accessKey, *secretKey, "")
+	var cfg aws.Config
+	var err error
 
-	cfg, err := awsconfig.LoadDefaultConfig(
-		ctx,
-		awsconfig.WithCredentialsProvider(creds),
-		awsconfig.WithRegion(*region),
-	)
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+	if *endpoint != "" {
+		// S3-compatible service configuration
+		if *accessKey == "" || *secretKey == "" {
+			log.Fatal("Access key and secret key are required for S3-compatible services")
+		}
+		creds := credentials.NewStaticCredentialsProvider(*accessKey, *secretKey, "")
+		cfg, err = awsconfig.LoadDefaultConfig(
+			ctx,
+			awsconfig.WithCredentialsProvider(creds),
+			awsconfig.WithRegion(*region),
+		)
+		if err != nil {
+			log.Fatalf("Failed to load config for S3-compatible service: %v", err)
+		}
+	} else {
+		// AWS S3 configuration
+		cfg, err = awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(*region))
+		if err != nil {
+			log.Fatalf("Failed to load config for AWS S3: %v", err)
+		}
+		// If access key and secret key are provided, use them
+		if *accessKey != "" && *secretKey != "" {
+			cfg.Credentials = credentials.NewStaticCredentialsProvider(*accessKey, *secretKey, "")
+		}
 	}
 
 	// Create S3 client
